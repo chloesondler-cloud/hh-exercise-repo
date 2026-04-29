@@ -181,6 +181,15 @@
   
   /* Migraines grid */
   .migraines-note { background: var(--amber-light); border: 1px solid var(--amber); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 12px; color: #78350F; }
+
+  /* Clickable empty grid cells */
+  .grid-table td.grid-empty { cursor: pointer; }
+  .grid-table td.grid-empty:hover { background: var(--blue-light); }
+  .grid-table td.grid-empty .add-icon { opacity: 0; font-size: 16px; color: var(--blue); display: block; text-align: center; line-height: 1; }
+  .grid-table td.grid-empty:hover .add-icon { opacity: 1; }
+
+  /* Toast notification */
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--green); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: opacity 0.4s; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -319,6 +328,16 @@
   </div>
 </div>
 
+<!-- Add-to-Slot Modal -->
+<div class="modal-overlay" id="add-slot-modal" onclick="closeAddSlotModal(event)">
+  <div class="modal" style="max-width:560px">
+    <button class="modal-close" onclick="document.getElementById('add-slot-modal').classList.remove('open')">×</button>
+    <h2 style="margin-bottom:4px">Add New Exercise</h2>
+    <div id="slot-context"></div>
+    <div id="add-slot-form"></div>
+  </div>
+</div>
+
 <!-- Modal -->
 <div class="modal-overlay" id="modal" onclick="closeModal(event)">
   <div class="modal" id="modal-content">
@@ -357,6 +376,16 @@ const allNewExercises = NEW_EXERCISES.map(ex => ({
   ...ex,
   ...(savedMappings[ex.slug] || {})
 }));
+
+// Load any exercises created directly from the grid
+try {
+  const _customExs = JSON.parse(localStorage.getItem('hh_custom_exercises') || '[]');
+  _customExs.forEach(ex => {
+    if(!allNewExercises.find(e => e.slug === ex.slug)) {
+      allNewExercises.push({...ex, ...(savedMappings[ex.slug] || {})});
+    }
+  });
+} catch(e) {}
 
 // Combined list for library (current + new)
 const ALL_EXERCISES = [
@@ -612,10 +641,12 @@ function renderGrid() {
         cls = 'has-new-exercise';
       }
       
+      const safeFam = (row[2]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeChain = (row[3]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       if(content) {
-        html += `<td class="diff-col ${cls}" onclick="showCellModal('${content.replace(/'/g,"\'")}')" title="${content}">${content.substring(0,25)}${content.length>25?'…':''}</td>`;
+        html += `<td class="diff-col ${cls}" onclick="showCellModal('${content.replace(/'/g,"\\'")}','${safeFam}','${safeChain}',${d})" title="${content}">${content.substring(0,25)}${content.length>25?'…':''}</td>`;
       } else {
-        html += '<td class="diff-col"></td>';
+        html += `<td class="diff-col grid-empty" onclick="openAddToSlot('${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
       }
     });
     html += '</tr>';
@@ -626,7 +657,7 @@ function renderGrid() {
   document.getElementById('grid-count').textContent = count + ' chains';
 }
 
-function showCellModal(name) {
+function showCellModal(name, family, chain, diff) {
   const ex = ALL_EXERCISES.find(e => e.name.toLowerCase() === name.toLowerCase());
   if(ex) showExerciseModal(ex);
   else {
@@ -636,6 +667,162 @@ function showCellModal(name) {
     document.getElementById('modal-etpe').innerHTML = '';
     document.getElementById('modal').classList.add('open');
   }
+}
+
+// ===================== ADD-TO-SLOT =====================
+let _slotContext = {};
+
+function openAddToSlot(family, chain, diff) {
+  _slotContext = {family, chain, diff};
+
+  const allPositions = [...new Set(CURRENT_EXERCISES.filter(e=>e.bodyPosition).map(e=>e.bodyPosition))].sort();
+  const allWbing = [...new Set(CURRENT_EXERCISES.filter(e=>e.wbing).map(e=>e.wbing))].sort();
+  const allEquipment = [...new Set(CURRENT_EXERCISES.filter(e=>e.equipment).map(e=>e.equipment))].sort();
+  const allSuperFamilies = [...new Set(CURRENT_EXERCISES.filter(e=>e.superFamily).map(e=>e.superFamily))].sort();
+  const mk = arr => arr.map(v => `<option value="${v}">${v}</option>`).join('');
+
+  document.getElementById('slot-context').innerHTML = `
+    <div style="background:var(--blue-light);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px">
+      <strong>${family}</strong> › ${chain} › Difficulty <strong>${diff}</strong>
+    </div>`;
+
+  document.getElementById('add-slot-form').innerHTML = `
+    <div class="form-group">
+      <label>Exercise Name <span style="color:#DC2626">*</span></label>
+      <input type="text" id="slot-name" placeholder="e.g. Single Leg Bridge" oninput="autoSlug()">
+    </div>
+    <div class="form-group">
+      <label>Slug <span style="font-weight:400;color:var(--gray-500)">(auto-generated, editable)</span></label>
+      <input type="text" id="slot-slug" placeholder="auto-generated">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Model</label>
+        <select id="slot-model"><option value="">—</option><option value="F">F — Female</option><option value="M">M — Male</option><option value="B">B — Both</option></select>
+      </div>
+      <div class="form-group">
+        <label>Unilateral (L/R)</label>
+        <select id="slot-lr"><option value="">—</option><option value="TRUE">TRUE</option><option value="FALSE">FALSE</option></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Equipment</label>
+      <select id="slot-equipment"><option value="">—</option>${mk(allEquipment)}</select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Body Position</label>
+        <select id="slot-bodypos"><option value="">—</option>${mk(allPositions)}</select>
+      </div>
+      <div class="form-group">
+        <label>WBing</label>
+        <select id="slot-wbing"><option value="">—</option>${mk(allWbing)}</select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-group">
+        <label>Band</label>
+        <select id="slot-band"><option value="">—</option><option value="0">0 — No band</option><option value="1">1 — Band</option></select>
+      </div>
+      <div class="form-group">
+        <label>Super Family</label>
+        <select id="slot-superfamily"><option value="">—</option>${mk(allSuperFamilies)}</select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Body Area</label>
+      <input type="text" id="slot-bodyarea" placeholder="e.g. Hip/Knee, Back, Shoulder">
+    </div>
+    <div class="form-group">
+      <label>ETPE Scores <span style="font-weight:400;color:var(--gray-500)">(1 = low, 10 = high)</span></label>
+      <div class="etpe-sliders">
+        ${['mobility','capacity','motor','balance','fearAvoid','symptomRelief'].map(key => {
+          const labels = {mobility:'Mobility',capacity:'Capacity',motor:'Motor',balance:'Balance',fearAvoid:'Fear Avoid',symptomRelief:'Symptom Relief'};
+          return `<div class="slider-group">
+            <label>${labels[key]} <span class="score-val" id="sslot-${key}">5</span></label>
+            <input type="range" min="1" max="10" value="5" oninput="document.getElementById('sslot-${key}').textContent=this.value" id="slslot-${key}">
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveNewExerciseToSlot()">Add Exercise</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('add-slot-modal').classList.remove('open')">Cancel</button>
+    </div>`;
+
+  document.getElementById('add-slot-modal').classList.add('open');
+  setTimeout(() => document.getElementById('slot-name').focus(), 50);
+}
+
+function autoSlug() {
+  const name = document.getElementById('slot-name').value;
+  document.getElementById('slot-slug').value = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+
+function closeAddSlotModal(e) {
+  if(e.target === document.getElementById('add-slot-modal')) document.getElementById('add-slot-modal').classList.remove('open');
+}
+
+function saveNewExerciseToSlot() {
+  const nameEl = document.getElementById('slot-name');
+  const name = nameEl.value.trim();
+  if(!name) { nameEl.style.borderColor='#DC2626'; nameEl.focus(); return; }
+  nameEl.style.borderColor='';
+
+  const slug = document.getElementById('slot-slug').value.trim() ||
+    name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+
+  if(ALL_EXERCISES.find(e => e.slug === slug)) {
+    alert('An exercise with this slug already exists. Edit the slug to make it unique.');
+    document.getElementById('slot-slug').focus();
+    return;
+  }
+
+  const newEx = {
+    name, slug, isNew: true,
+    engFamily: _slotContext.family,
+    engChain: _slotContext.chain,
+    difficulty: String(_slotContext.diff),
+    famChain: _slotContext.family + ' ' + _slotContext.chain,
+    model: document.getElementById('slot-model').value,
+    lr: document.getElementById('slot-lr').value,
+    equipment: document.getElementById('slot-equipment').value,
+    bodyPosition: document.getElementById('slot-bodypos').value,
+    wbing: document.getElementById('slot-wbing').value,
+    band: document.getElementById('slot-band').value,
+    superFamily: document.getElementById('slot-superfamily').value,
+    bodyArea: document.getElementById('slot-bodyarea').value,
+    etpe: {
+      mobility: document.getElementById('slslot-mobility').value,
+      capacity: document.getElementById('slslot-capacity').value,
+      motor: document.getElementById('slslot-motor').value,
+      balance: document.getElementById('slslot-balance').value,
+      fearAvoid: document.getElementById('slslot-fearAvoid').value,
+      symptomRelief: document.getElementById('slslot-symptomRelief').value,
+    }
+  };
+
+  allNewExercises.push(newEx);
+  ALL_EXERCISES.push(newEx);
+  savedMappings[slug] = {...newEx};
+  localStorage.setItem('hh_exercise_mappings', JSON.stringify(savedMappings));
+
+  const customExs = JSON.parse(localStorage.getItem('hh_custom_exercises') || '[]');
+  customExs.push(newEx);
+  localStorage.setItem('hh_custom_exercises', JSON.stringify(customExs));
+
+  document.getElementById('add-slot-modal').classList.remove('open');
+  renderGrid();
+  showToast(`"${name}" added — also visible in New Exercise Mapper`);
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if(!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
 }
 
 // ===================== TAB 3: MAPPER =====================
