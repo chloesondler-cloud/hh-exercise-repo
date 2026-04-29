@@ -355,7 +355,7 @@
 </div>
 
 <!-- TAB 6: Exercise Detail -->
-<div id="tab5" class="panel" style="display:none">
+<div id="tab5" class="panel">
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
     <input id="detail-search" type="text" placeholder="Search exercises, anatomical names, or purpose..." oninput="renderDetailTab()" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid var(--gray-300);border-radius:6px;font-size:14px">
     <span id="detail-count" style="color:var(--gray-500);font-size:13px"></span>
@@ -735,7 +735,7 @@ let _pickerSlot = {};
 
 function openSlotPicker(event, family, chain, diff) {
   event.stopPropagation();
-  _pickerSlot = {family, chain, diff};
+  _pickerSlot = {family: family.trim(), chain: chain.trim(), diff};
 
   const picker = document.getElementById('slot-picker');
   const td = event.currentTarget;
@@ -816,7 +816,7 @@ document.addEventListener('click', e => {
 let _slotContext = {};
 
 function openAddToSlot(family, chain, diff) {
-  _slotContext = {family, chain, diff};
+  _slotContext = {family: family.trim(), chain: chain.trim(), diff};
 
   const allPositions = [...new Set(CURRENT_EXERCISES.filter(e=>e.bodyPosition).map(e=>e.bodyPosition))].sort();
   const allWbing = [...new Set(CURRENT_EXERCISES.filter(e=>e.wbing).map(e=>e.wbing))].sort();
