@@ -189,6 +189,21 @@
   .grid-table td.grid-empty .add-icon { opacity: 0; font-size: 16px; color: var(--blue); display: block; text-align: center; line-height: 1; }
   .grid-table td.grid-empty:hover .add-icon { opacity: 1; }
 
+  /* Slot picker popover */
+  #slot-picker { position: fixed; background: white; border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.15); z-index: 400; width: 310px; max-height: 380px; display: none; flex-direction: column; overflow: hidden; }
+  #slot-picker.open { display: flex; }
+  .picker-header { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); flex-shrink: 0; }
+  .picker-context { font-size: 11px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .picker-header input { width: 100%; border: 1px solid var(--gray-300); border-radius: 6px; padding: 6px 8px; font-size: 12px; outline: none; }
+  .picker-header input:focus { border-color: var(--blue); }
+  #picker-list { overflow-y: auto; flex: 1; }
+  .picker-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--gray-100); }
+  .picker-item:hover { background: var(--blue-light); }
+  .picker-item .pi-name { font-size: 13px; font-weight: 500; }
+  .picker-item .pi-meta { font-size: 11px; color: var(--gray-500); margin-top: 1px; }
+  .picker-empty { padding: 18px 12px; text-align: center; color: var(--gray-500); font-size: 12px; }
+  .picker-footer { padding: 8px 12px; border-top: 1px solid var(--gray-100); flex-shrink: 0; }
+
   /* Toast notification */
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--green); color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: opacity 0.4s; pointer-events: none; }
 </style>
@@ -335,6 +350,18 @@
   </div>
   <div class="grid-scroll">
     <table class="grid-table" id="mig-table"></table>
+  </div>
+</div>
+
+<!-- Slot Picker Popover -->
+<div id="slot-picker">
+  <div class="picker-header">
+    <div class="picker-context" id="picker-context-label"></div>
+    <input type="text" id="picker-search" placeholder="Search unmapped exercises..." oninput="filterPicker()">
+  </div>
+  <div id="picker-list"></div>
+  <div class="picker-footer">
+    <button class="btn btn-primary" style="width:100%;font-size:12px" onclick="openAddToSlotFromPicker()">＋ Create a brand new exercise</button>
   </div>
 </div>
 
@@ -656,12 +683,12 @@ function renderGrid() {
       if(content) {
         html += `<td class="diff-col ${cls}" onclick="showCellModal('${content.replace(/'/g,"\\'")}','${safeFam}','${safeChain}',${d})" title="${content}">${content.substring(0,25)}${content.length>25?'…':''}</td>`;
       } else {
-        html += `<td class="diff-col grid-empty" onclick="openAddToSlot('${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
+        html += `<td class="diff-col grid-empty" onclick="openSlotPicker(event,'${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
       }
     });
     html += '</tr>';
   });
-  
+
   html += '</tbody>';
   table.innerHTML = html;
   document.getElementById('grid-count').textContent = count + ' chains';
@@ -678,6 +705,88 @@ function showCellModal(name, family, chain, diff) {
     document.getElementById('modal').classList.add('open');
   }
 }
+
+// ===================== SLOT PICKER =====================
+let _pickerSlot = {};
+
+function openSlotPicker(event, family, chain, diff) {
+  event.stopPropagation();
+  _pickerSlot = {family, chain, diff};
+
+  const picker = document.getElementById('slot-picker');
+  const td = event.currentTarget;
+  const rect = td.getBoundingClientRect();
+
+  // Position below the cell, flip up if too close to bottom
+  let top = rect.bottom + 6;
+  let left = rect.left;
+  if(left + 316 > window.innerWidth) left = window.innerWidth - 320;
+  if(top + 390 > window.innerHeight) top = rect.top - 390;
+  picker.style.top = Math.max(8, top) + 'px';
+  picker.style.left = Math.max(8, left) + 'px';
+
+  document.getElementById('picker-context-label').textContent = `${family} › ${chain} › Difficulty ${diff}`;
+  document.getElementById('picker-search').value = '';
+  filterPicker();
+
+  picker.classList.add('open');
+  setTimeout(() => document.getElementById('picker-search').focus(), 40);
+}
+
+function filterPicker() {
+  const q = document.getElementById('picker-search').value.toLowerCase();
+  const unmapped = allNewExercises.filter(ex => !ex.engFamily);
+  const filtered = q ? unmapped.filter(ex =>
+    ex.name.toLowerCase().includes(q) || (ex.slug||'').toLowerCase().includes(q)
+  ) : unmapped;
+
+  const list = document.getElementById('picker-list');
+  if(!filtered.length) {
+    list.innerHTML = `<div class="picker-empty">${q ? 'No matches' : 'All new exercises are already mapped'}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(ex => {
+    const meta = [ex.bodyArea, ex.equipment].filter(Boolean).join(' · ') || '';
+    return `<div class="picker-item" onclick="assignExerciseToSlot('${ex.slug.replace(/'/g,"\\'")}')">
+      <div class="pi-name">${ex.name}</div>
+      ${meta ? `<div class="pi-meta">${meta}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function assignExerciseToSlot(slug) {
+  const ex = allNewExercises.find(e => e.slug === slug);
+  if(!ex) return;
+
+  ex.engFamily = _pickerSlot.family;
+  ex.engChain  = _pickerSlot.chain;
+  ex.difficulty = String(_pickerSlot.diff);
+  ex.famChain  = _pickerSlot.family + ' ' + _pickerSlot.chain;
+
+  savedMappings[slug] = Object.assign(savedMappings[slug] || {}, {
+    engFamily: ex.engFamily, engChain: ex.engChain,
+    difficulty: ex.difficulty, famChain: ex.famChain
+  });
+  localStorage.setItem('hh_exercise_mappings', JSON.stringify(savedMappings));
+
+  document.getElementById('slot-picker').classList.remove('open');
+  renderGrid();
+  renderMigGrid();
+  showToast(`"${ex.name}" assigned to this slot`);
+}
+
+function openAddToSlotFromPicker() {
+  document.getElementById('slot-picker').classList.remove('open');
+  openAddToSlot(_pickerSlot.family, _pickerSlot.chain, _pickerSlot.diff);
+}
+
+// Close picker on outside click
+document.addEventListener('click', e => {
+  const picker = document.getElementById('slot-picker');
+  if(picker.classList.contains('open') && !picker.contains(e.target)) {
+    picker.classList.remove('open');
+  }
+});
 
 // ===================== ADD-TO-SLOT =====================
 let _slotContext = {};
@@ -1316,7 +1425,7 @@ function renderMigGrid() {
         const content = newEx.join(', ');
         html += `<td class="diff-col has-new-exercise" onclick="showCellModal('${newEx[0].replace(/'/g,"\\'")}','${safeFam}','${safeChain}',${d})" title="${content}">${content.substring(0,25)}${content.length>25?'…':''}</td>`;
       } else {
-        html += `<td class="diff-col grid-empty" onclick="openAddToSlot('${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
+        html += `<td class="diff-col grid-empty" onclick="openSlotPicker(event,'${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
       }
     });
     html += '</tr>';
