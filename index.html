@@ -108,7 +108,8 @@
   .grid-table .body-part-header { background: var(--blue-light) !important; font-weight: 700; font-size: 11px; color: var(--blue); }
   .grid-table td.has-exercise { background: #E8F5E9; color: var(--green); font-weight: 500; cursor: pointer; }
   .grid-table td.has-exercise:hover { background: #C8E6C9; }
-  .grid-table td.has-new-exercise { background: #E8F5E9; color: #1B5E20; font-style: italic; }
+  .grid-table td.has-new-exercise { background: #FEF3C7; color: #92400E; font-weight: 500; font-style: italic; cursor: pointer; }
+  .grid-table td.has-new-exercise:hover { background: #FDE68A; }
   .diff-col { text-align: center; min-width: 65px; }
   
   /* Exercise detail modal */
@@ -261,7 +262,11 @@
   <div class="controls">
     <select id="grid-bodypart" onchange="renderGrid()"><option value="">All Body Parts</option></select>
     <span class="count-badge" id="grid-count">0 rows</span>
-    <span style="font-size:12px;color:var(--gray-500);margin-left:8px">Click any cell to see exercise details</span>
+    <div class="legend" style="margin:0 0 0 12px">
+      <div class="legend-item"><div class="legend-dot" style="background:#E8F5E9;border:1px solid #A7D7A9"></div>Existing exercise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FEF3C7;border:1px solid #FCD34D"></div>Newly added exercise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue-light);border:1px solid var(--blue)"></div>Click empty cell to add</div>
+    </div>
   </div>
   <div class="grid-scroll">
     <table class="grid-table" id="grid-table"></table>
@@ -320,8 +325,13 @@
 
 <!-- TAB 5: Migraines ETPE -->
 <div id="tab4" class="panel">
-  <div class="migraines-note">
-    <strong>Migraines ETPE Mapping 3/30</strong> — Read-only view of the migraine-specific ETPE grid. Difficulty on x-axis (10–100), Body Part → Family → Chain on y-axis.
+  <div class="migraines-note" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <span><strong>Migraines ETPE Mapping 3/30</strong> — Difficulty on x-axis (10–100), Body Part → Family → Chain on y-axis.</span>
+    <div class="legend" style="margin:0">
+      <div class="legend-item"><div class="legend-dot" style="background:#E8F5E9;border:1px solid #A7D7A9"></div>Existing exercise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FEF3C7;border:1px solid #FCD34D"></div>Newly added exercise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue-light);border:1px solid var(--blue)"></div>Click empty cell to add</div>
+    </div>
   </div>
   <div class="grid-scroll">
     <table class="grid-table" id="mig-table"></table>
@@ -404,7 +414,7 @@ function showTab(idx) {
   if(idx === 1) renderGrid();
   if(idx === 2) renderMapper();
   if(idx === 3) initEtpe();
-  if(idx === 4) renderMigGrid();
+  if(idx === 4) { document.getElementById('mig-table').innerHTML = ''; renderMigGrid(); }
 }
 
 // ===================== TAB 1: LIBRARY =====================
@@ -813,6 +823,7 @@ function saveNewExerciseToSlot() {
 
   document.getElementById('add-slot-modal').classList.remove('open');
   renderGrid();
+  renderMigGrid();
   showToast(`"${name}" added — also visible in New Exercise Mapper`);
 }
 
@@ -1272,13 +1283,20 @@ const MIG_ROWS = [["Body Part", "Type", "Family", "Chain", "Fam+Chain", "", "", 
 
 function renderMigGrid() {
   const table = document.getElementById('mig-table');
-  if(table.innerHTML) return; // already rendered
-  
+
+  // Build lookup of user-added exercises by family|chain|diff
+  const newMappings = {};
+  allNewExercises.filter(ex => ex.engFamily).forEach(ex => {
+    const key = ex.engFamily + '|' + ex.engChain + '|' + (ex.difficulty || '');
+    if(!newMappings[key]) newMappings[key] = [];
+    newMappings[key].push(ex.name);
+  });
+
   let html = '<thead><tr>';
   html += '<th>Body Part</th><th>Type</th><th>Family</th><th>Chain</th><th>Fam+Chain</th>';
   DIFF_LEVELS.forEach(d => html += `<th class="diff-col">${d}</th>`);
   html += '</tr></thead><tbody>';
-  
+
   MIG_ROWS.forEach(row => {
     if(!row[0] || row[0]==='Body Part') return;
     html += '<tr>';
@@ -1287,15 +1305,23 @@ function renderMigGrid() {
     });
     DIFF_LEVELS.forEach((d, di) => {
       const cellVal = (row[5+di]||'').trim();
+      const famChain = (row[2]||'').trim() + '|' + (row[3]||'').trim() + '|' + d;
+      const newEx = newMappings[famChain] || [];
+      const safeFam = (row[2]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeChain = (row[3]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
       if(cellVal && cellVal !== ' ') {
-        html += `<td class="diff-col has-exercise" onclick="showCellModal('${cellVal.replace(/'/g,"\'")}')" title="${cellVal}">${cellVal.substring(0,25)}${cellVal.length>25?'…':''}</td>`;
+        html += `<td class="diff-col has-exercise" onclick="showCellModal('${cellVal.replace(/'/g,"\\'")}','${safeFam}','${safeChain}',${d})" title="${cellVal}">${cellVal.substring(0,25)}${cellVal.length>25?'…':''}</td>`;
+      } else if(newEx.length) {
+        const content = newEx.join(', ');
+        html += `<td class="diff-col has-new-exercise" onclick="showCellModal('${newEx[0].replace(/'/g,"\\'")}','${safeFam}','${safeChain}',${d})" title="${content}">${content.substring(0,25)}${content.length>25?'…':''}</td>`;
       } else {
-        html += '<td class="diff-col"></td>';
+        html += `<td class="diff-col grid-empty" onclick="openAddToSlot('${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
       }
     });
     html += '</tr>';
   });
-  
+
   table.innerHTML = html + '</tbody>';
 }
 
