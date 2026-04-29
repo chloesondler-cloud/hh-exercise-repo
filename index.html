@@ -658,7 +658,7 @@ function renderGrid() {
   // Get new exercise mappings
   const newMappings = {};
   allNewExercises.filter(ex=>ex.engFamily).forEach(ex => {
-    const key = ex.engFamily + '|' + ex.engChain + '|' + (ex.difficulty||'');
+    const key = (ex.engFamily||'').trim() + '|' + (ex.engChain||'').trim() + '|' + (ex.difficulty||'').trim();
     if(!newMappings[key]) newMappings[key] = [];
     newMappings[key].push(ex.name);
   });
@@ -1420,7 +1420,7 @@ function renderMigGrid() {
   // Build lookup of user-added exercises by family|chain|diff
   const newMappings = {};
   allNewExercises.filter(ex => ex.engFamily).forEach(ex => {
-    const key = ex.engFamily + '|' + ex.engChain + '|' + (ex.difficulty || '');
+    const key = (ex.engFamily||'').trim() + '|' + (ex.engChain||'').trim() + '|' + (ex.difficulty||'').trim();
     if(!newMappings[key]) newMappings[key] = [];
     newMappings[key].push(ex.name);
   });
