@@ -1642,27 +1642,25 @@ function dmetKey(sessionTitle, exName) {
 }
 function dmetNormalizeName(name) { return name.toLowerCase().replace(/\s+/g,' ').trim(); }
 
-// Duration estimation: CM=3s/rep, hold=(hold+2)s/rep, 8s between exercises, 20s intro
+// Duration estimation calibrated via regression against 56 sessions with known in-app durations.
+// Model: ~10s intercept + 42s per exercise (overhead/cuing/transitions) + 1.2 × Σ(reps × hold_secs).
+// CM exercises (hold=0) contribute only the 42s overhead term. RMSE ~69s on training set.
 function dmetNormalizeHold(rawHold) {
   if(rawHold === 0 || rawHold === 'CM' || rawHold === '' || rawHold == null) return 0;
   const n = parseInt(rawHold, 10);
   return isNaN(n) ? 0 : n;
 }
-function dmetExerciseSecs(reps, holdNorm) {
-  const secsPerRep = holdNorm === 0 ? 3 : (holdNorm + 2);
-  return reps * secsPerRep;
-}
 function dmetSessionSecs(session, proposed) {
-  let total = 20; // intro
-  session.exercises.forEach((ex, i) => {
-    if(i > 0) total += 8; // transition
+  let holdWork = 0;
+  const n = session.exercises.length;
+  session.exercises.forEach(ex => {
     const k = dmetKey(session.title, ex.name);
     const p = proposed[k];
     const reps = (p && p.reps != null) ? p.reps : (parseInt(ex.reps, 10) || 8);
     const hold = (p && p.reps != null) ? p.hold : dmetNormalizeHold(ex.hold);
-    total += dmetExerciseSecs(reps, hold);
+    holdWork += reps * hold;
   });
-  return total;
+  return Math.round(10 + 42 * n + 1.2 * holdWork);
 }
 function dmetFormatDuration(secs) {
   const m = Math.floor(secs / 60), s = secs % 60;
@@ -1743,10 +1741,10 @@ function renderDMETSessions() {
         ? `<span title="Actual in-app session duration from the Additional ET spreadsheet" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#EFF6FF;color:#1D4ED8;cursor:default">${appDuration}</span>`
         : '';
       const proposedBadge = durationChanged
-        ? `<span title="Estimated new duration with proposed dosage changes (CM=3s/rep, hold=(hold+2)s/rep, 8s transitions, 20s intro)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F0FDF4;color:#166534;cursor:default">~${dmetFormatDuration(proposedSecs)} w/ proposals</span>`
+        ? `<span title="Estimated new duration with proposed dosage changes (calibrated model: 42s/exercise overhead + 1.2×(reps×hold) execution time)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F0FDF4;color:#166534;cursor:default">~${dmetFormatDuration(proposedSecs)} w/ proposals</span>`
         : '';
       const durationBadge = appBadge + proposedBadge ||
-        `<span title="Estimated session length (CM=3s/rep, hold=(hold+2)s/rep, 8s transitions, 20s intro)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F8FAFC;color:#64748B;cursor:default">~${dmetFormatDuration(proposedSecs)}</span>`;
+        `<span title="Estimated session length (calibrated model: 42s/exercise overhead + 1.2×(reps×hold) execution time)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F8FAFC;color:#64748B;cursor:default">~${dmetFormatDuration(proposedSecs)}</span>`;
 
       html += `<div style="border:1px solid var(--gray-200);border-radius:8px;margin-bottom:12px;overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gray-50);border-bottom:1px solid var(--gray-200)">
