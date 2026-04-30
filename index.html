@@ -1571,6 +1571,42 @@ let _dmetBodyFilter = 'All';
 let _dmetDiffFilter = 'All';
 
 const DMET_BODY_PARTS = ['All','Upper Body','Lower Body','Full Body','Back','Neck','Knee','Hip','Ankle & Foot','Shoulder','Pelvic Floor'];
+// Actual in-app session durations from the "Additional ET for Home Exercises" spreadsheet.
+// Keys are normalized session titles (lowercase, trimmed). Values are the duration string from col N.
+const DMET_SESSION_DURATIONS = {
+  // Full Body
+  'full body reset':'5 min','quick relief for sore muscles':'5 min','5 min full body mobility':'5 min',
+  'deep full body stretch':'10 min','total body stretch':'10 min','gentle full body mobility':'10 min',
+  'standing full body strength':'9 min','quick full body stretch':'5 min','seated full body strength':'10 min',
+  'full body core strength':'7 min','quick office stretch break':'5 min','yoga for full body relief':'7 min',
+  'full body strength for pain relief':'7 min','glute and core workout':'6 min','arms and legs workout':'9 min',
+  'lower body exercises for running':'10 min',
+  // Lower Body
+  'quick lower body reset':'5 min','advanced lower body stretch':'5 min','5 min lower body stretch break':'5 min',
+  'deep release for legs and hips':'10 min','10 min lower body stretch':'10 min','lower body tension relief':'10 min',
+  'beginner pelvic floor strengthening':'7 min','advanced pelvic floor strengthening':'10 min',
+  'seated lower body stretch':'6 min',
+  // Upper Body
+  '5 min upper body mobility':'5 min','relieving upper body stretch':'5 min','quick upper body reset':'5 min',
+  'advanced upper body mobility':'10 min','10 min upper body stretch':'10 min','gentle upper body stretch':'10 min',
+  // Back
+  'gentle low back mobility':'5 min','10 min low back stretch':'10 min','mid and low back strength':'10 min',
+  // Hip
+  'gentle hip mobility':'5 min','10 min hip stretch':'10 min','build your hip strength':'10 min',
+  // Knee
+  'quick knee stretch':'5 min','build your knee strength':'10 min',
+  // Neck
+  'gentle neck mobility':'5 min','10 min neck strength':'10 min',
+  // Shoulder
+  'quick shoulder stretch':'5 min','resistance band shoulder strength':'10 min',
+  // Ankle & Foot
+  'quick foot and ankle stretch':'5 min','gentle foot and ankle mobility':'10 min','10 min foot and ankle strength':'10 min',
+  // Pelvic Floor
+  'abdominal stretch routine':'5 min','constipation routine':'8 min','core canister tune up':'5 min',
+  'easing into pelvic strengthening':'5 min','lengthen before you strengthen':'5 min',
+  'managing pelvic organ prolapse':'5 min','pubic bone pain relief':'6 min',
+  'return to running prep exercises':'6 min','sex prep exercises':'7 min','tailbone pain relief':'6 min',
+};
 const DMET_DIFFS = ['All','Easy','Moderate','Hard'];
 const DMET_DIFF_COLORS = {Easy:'#DCFCE7|#166534', Moderate:'#FEF9C3|#713F12', Hard:'#FEE2E2|#7F1D1D'};
 // Name aliases: spreadsheet name (normalized) → slug, for exercises whose spreadsheet name
@@ -1690,12 +1726,17 @@ function renderDMETSessions() {
         return proposed[k] && (proposed[k].reps != null || proposed[k].hold != null);
       });
 
-      const currentSecs   = dmetSessionSecs(session, {});
+      const appDuration   = DMET_SESSION_DURATIONS[session.title.toLowerCase().trim()] || null;
       const proposedSecs  = dmetSessionSecs(session, proposed);
-      const durationChanged = hasChanges && proposedSecs !== currentSecs;
-      const durationBadge = durationChanged
-        ? `<span title="Estimated session length with proposed dosage changes (model: CM=3s/rep, hold=(hold+2)s/rep, 8s transitions, 20s intro)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F0FDF4;color:#166534;cursor:default">~${dmetFormatDuration(proposedSecs)} proposed</span>`
-        : `<span title="Estimated session length (model: CM=3s/rep, hold=(hold+2)s/rep, 8s transitions, 20s intro)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F8FAFC;color:#64748B;cursor:default">~${dmetFormatDuration(currentSecs)}</span>`;
+      const durationChanged = hasChanges && proposedSecs !== dmetSessionSecs(session, {});
+      const appBadge = appDuration
+        ? `<span title="Actual in-app session duration from the Additional ET spreadsheet" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#EFF6FF;color:#1D4ED8;cursor:default">${appDuration}</span>`
+        : '';
+      const proposedBadge = durationChanged
+        ? `<span title="Estimated new duration with proposed dosage changes (CM=3s/rep, hold=(hold+2)s/rep, 8s transitions, 20s intro)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F0FDF4;color:#166534;cursor:default">~${dmetFormatDuration(proposedSecs)} w/ proposals</span>`
+        : '';
+      const durationBadge = appBadge + proposedBadge ||
+        `<span title="Estimated session length (CM=3s/rep, hold=(hold+2)s/rep, 8s transitions, 20s intro)" style="padding:2px 8px;border-radius:12px;font-size:11px;background:#F8FAFC;color:#64748B;cursor:default">~${dmetFormatDuration(proposedSecs)}</span>`;
 
       html += `<div style="border:1px solid var(--gray-200);border-radius:8px;margin-bottom:12px;overflow:hidden">
         <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gray-50);border-bottom:1px solid var(--gray-200)">
