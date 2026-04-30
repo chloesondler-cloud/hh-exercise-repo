@@ -1573,6 +1573,16 @@ let _dmetDiffFilter = 'All';
 const DMET_BODY_PARTS = ['All','Upper Body','Lower Body','Full Body','Back','Neck','Knee','Hip','Ankle & Foot','Shoulder','Pelvic Floor'];
 const DMET_DIFFS = ['All','Easy','Moderate','Hard'];
 const DMET_DIFF_COLORS = {Easy:'#DCFCE7|#166534', Moderate:'#FEF9C3|#713F12', Hard:'#FEE2E2|#7F1D1D'};
+// Name aliases: spreadsheet name (normalized) → slug, for exercises whose spreadsheet name
+// doesn't exactly match the exercise-service name used in DMET_NAME_TO_SLUG.
+const DMET_NAME_ALIASES = {
+  'standing childs pose':   'standing-childs-pose',
+  'childs pose':            'childs-pose',
+  't spine opener':         't-spine-opener',
+  'side lying leg raise':   'side-lying-leg-raise',
+  'side lying quad stretch':'sidelying-quad-stretch',
+  'wall push-ups':          'wall-push-ups',
+};
 const DMET_STORAGE_KEY = 'hh_dmet_proposed';
 
 function getDMETProposed() {
@@ -1710,7 +1720,8 @@ function renderDMETSessions() {
         const p = proposed[k] || {};
         const hasProposed = p.reps != null;
         const rowBg = hasProposed ? '#EFF6FF' : (i%2===0?'#fff':'var(--gray-50)');
-        const slug = DMET_NAME_TO_SLUG[dmetNormalizeName(ex.name)];
+        const _norm = dmetNormalizeName(ex.name);
+        const slug = DMET_NAME_TO_SLUG[_norm] || (DMET_NAME_ALIASES[_norm] ? DMET_NAME_ALIASES[_norm] : null);
         const combos = slug ? (EXERCISE_DOSAGES[slug] || []) : [];
         const safeTitle = session.title.replace(/'/g,"\\'");
         const safeName = ex.name.replace(/'/g,"\\'");
