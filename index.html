@@ -1668,23 +1668,35 @@ function dmetFormatDuration(secs) {
 }
 
 function renderDMETTab() {
+  // Precompute session counts per body part and difficulty
+  const bpCounts = {}, diffCounts = {};
+  DMET_SESSIONS.forEach(s => {
+    const bp = s.bodyPart || 'Other';
+    const d  = (s.difficulty || '').trim();
+    bpCounts[bp]  = (bpCounts[bp]  || 0) + 1;
+    diffCounts[d] = (diffCounts[d] || 0) + 1;
+  });
+  const total = DMET_SESSIONS.length;
+
   // Body part filter pills
   const bfEl = document.getElementById('dmet-body-filters');
-  bfEl.innerHTML = DMET_BODY_PARTS.map(bp =>
-    `<button onclick="setDMETBodyFilter('${bp.replace(/'/g,"\\'")}',this)"
+  bfEl.innerHTML = DMET_BODY_PARTS.map(bp => {
+    const count = bp === 'All' ? total : (bpCounts[bp] || 0);
+    return `<button onclick="setDMETBodyFilter('${bp.replace(/'/g,"\\'")}',this)"
       style="padding:4px 12px;border-radius:20px;border:1px solid ${_dmetBodyFilter===bp?'var(--blue)':'var(--gray-300)'};
       background:${_dmetBodyFilter===bp?'var(--blue)':'#fff'};color:${_dmetBodyFilter===bp?'#fff':'var(--gray-700)'};
-      cursor:pointer;font-size:13px">${bp}</button>`
-  ).join('');
+      cursor:pointer;font-size:13px">${bp} <span style="opacity:0.65;font-size:11px">(${count})</span></button>`;
+  }).join('');
 
   // Difficulty filter
   const dfEl = document.getElementById('dmet-diff-filters');
   dfEl.innerHTML = DMET_DIFFS.map(d => {
     const active = _dmetDiffFilter === d;
+    const count  = d === 'All' ? total : (diffCounts[d] || 0);
     return `<button onclick="setDMETDiffFilter('${d}',this)"
       style="padding:4px 12px;border-radius:20px;border:1px solid ${active?'var(--blue)':'var(--gray-300)'};
       background:${active?'var(--blue)':'#fff'};color:${active?'#fff':'var(--gray-700)'};
-      cursor:pointer;font-size:13px">${d}</button>`;
+      cursor:pointer;font-size:13px">${d} <span style="opacity:0.65;font-size:11px">(${count})</span></button>`;
   }).join('');
 
   renderDMETSessions();
