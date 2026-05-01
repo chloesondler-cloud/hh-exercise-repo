@@ -310,6 +310,7 @@
     </div>
     <button id="grid-edit-btn" class="btn btn-secondary" onclick="toggleGridEditMode()" style="margin-left:auto">&#9998; Edit Positions</button>
     <button class="btn btn-secondary" onclick="clearAllOverrides()" style="margin-left:6px;color:#DC2626;border-color:#FCA5A5;font-size:12px">Clear Overrides</button>
+    <button class="btn btn-secondary" onclick="exportProposedStateCSV()" style="margin-left:6px;background:#f8f5ff;border-color:#c4b5fd;color:#7c3aed;font-size:12px" title="Export all exercises with proposed changes applied — for Sims &amp; Sums">&#9660; Export Proposed State</button>
   </div>
   <div class="moving-bar" id="moving-bar">
     <span>&#128260; Moving: <strong id="moving-bar-name"></strong></span>
@@ -337,6 +338,7 @@
     </select>
     <span class="count-badge" id="mapper-count"></span>
     <button class="btn btn-secondary" onclick="exportMappingsCSV()" style="margin-left:auto">Export Mappings CSV</button>
+    <button class="btn btn-secondary" onclick="exportProposedStateCSV()" style="margin-left:8px;background:#f8f5ff;border-color:#c4b5fd;color:#7c3aed" title="Export all current + new exercises with proposed changes applied — for use in Sims &amp; Sums">&#9660; Export Proposed State</button>
     <button class="btn btn-secondary" onclick="resetMappings()" style="margin-left:8px; color:#DC2626; border-color:#FCA5A5">Reset All Mappings</button>
   </div>
   <div class="mapper-grid">
@@ -1776,6 +1778,53 @@ function exportMappingsCSV() {
     ex.etpe?.balance||'', ex.etpe?.fearAvoid||'', ex.etpe?.symptomRelief||''
   ]);
   downloadCSV([headers,...rows], 'new_exercise_mappings.csv');
+}
+
+function exportProposedStateCSV() {
+  const headers = [
+    'Name','Slug','Status',
+    'ENG Family','ENG Chain','Difficulty','Fam+Chain',
+    'Body Area','Equipment','Body Position','WBing','Band','Super Family','Model','L/R',
+    'Mobility','Capacity','Motor','Balance','Fear Avoid','Symptom Relief'
+  ];
+  const rows = [];
+
+  const makeRow = (ex, status) => {
+    const fam = ex.engFamily || '';
+    const chain = ex.engChain || '';
+    return [
+      ex.name, ex.slug, status,
+      fam, chain, ex.difficulty || '', fam && chain ? fam + ' ' + chain : '',
+      ex.bodyArea||'', ex.equipment||'', ex.bodyPosition||'', ex.wbing||'', ex.band||'', ex.superFamily||'', ex.model||'', ex.lr||'',
+      ex.etpe?.mobility||'', ex.etpe?.capacity||'', ex.etpe?.motor||'',
+      ex.etpe?.balance||'', ex.etpe?.fearAvoid||'', ex.etpe?.symptomRelief||''
+    ];
+  };
+
+  // Current exercises — apply savedMappings on top as proposed overrides
+  CURRENT_EXERCISES.forEach(ex => {
+    const m = savedMappings[ex.slug] || {};
+    const hasChanges = Object.keys(m).length > 0;
+    const merged = {
+      ...ex,
+      engFamily:  m.engFamily  !== undefined ? m.engFamily  : (ex.engFamily  || ''),
+      engChain:   m.engChain   !== undefined ? m.engChain   : (ex.engChain   || ''),
+      difficulty: m.difficulty !== undefined ? m.difficulty : (ex.difficulty || ''),
+      etpe: { ...(ex.etpe || {}), ...(m.etpe || {}) }
+    };
+    rows.push(makeRow(merged, hasChanges ? 'Current (proposed changes)' : 'Current'));
+  });
+
+  // New exercises that have been mapped (fully or partially)
+  allNewExercises.forEach(ex => {
+    const m = savedMappings[ex.slug] || {};
+    const merged = { ...ex, ...m, etpe: { ...(ex.etpe || {}), ...(m.etpe || {}) } };
+    if (!merged.engFamily) return; // skip fully unmapped new exercises
+    rows.push(makeRow(merged, 'New (proposed)'));
+  });
+
+  downloadCSV([headers, ...rows], 'proposed_exercise_state.csv');
+  showToast(`Exported ${rows.length} exercises (${rows.filter(r=>r[2]==='Current (proposed changes)').length} with proposed changes, ${rows.filter(r=>r[2]==='New (proposed)').length} new)`);
 }
 
 function downloadCSV(rows, filename) {
