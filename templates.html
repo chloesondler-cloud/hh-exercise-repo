@@ -84,19 +84,20 @@
   /* ── Stream columns ──────────────────────────────────────────────────────── */
   .content { padding: 16px 20px; }
   .streams-wrap { overflow-x: auto; padding-bottom: 4px; }
-  .streams-cols { display: grid; gap: 14px; align-items: start; }
+  .streams-cols { display: grid; gap: 14px; align-items: stretch; }
   .stream-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .stream-col-hdr { background: var(--blue-dark); color: white; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; }
   .stream-col-hdr .period-ct { font-size: 11px; font-weight: 400; opacity: 0.7; margin-left: auto; }
   .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
 
   /* ── Week card ───────────────────────────────────────────────────────────── */
-  .week-card { background: white; border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; }
-  .week-card-header { padding: 8px 13px; background: var(--blue-light); border-bottom: 1px solid var(--gray-200); display: flex; align-items: baseline; gap: 7px; }
+  .week-card { background: white; border: 1px solid var(--gray-200); border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; display: flex; flex-direction: column; }
+  .week-card-header { padding: 8px 13px; background: var(--blue-light); border-bottom: 1px solid var(--gray-200); display: flex; align-items: baseline; gap: 7px; flex-shrink: 0; }
   .week-card-header h3 { font-size: 13px; font-weight: 700; color: var(--blue); }
   .week-card-header .new-badge { font-size: 10px; background: var(--amber); color: white; padding: 1px 6px; border-radius: 8px; font-weight: 600; }
   .week-card-header .ex-count { font-size: 11px; color: var(--gray-500); margin-left: auto; }
-  .week-card-body { overflow-y: auto; }
+  .week-card-body { overflow-y: auto; flex: 1; }
+  .week-card-empty { background: var(--gray-50); border: 1px dashed var(--gray-200); border-radius: 10px; min-height: 40px; }
   .week-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .week-table td { padding: 6px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
   .week-table tr:last-child td { border-bottom: none; }
@@ -243,11 +244,21 @@ function renderStreamColumns(streams) {
     for (let i = 0; i < filtered[0].periods.length; i++) html += renderCard(filtered[0], i);
     html += '</div>';
   } else {
+    const maxPeriods = Math.max(...filtered.map(s => s.periods.length));
     html += `<div class="streams-wrap"><div class="streams-cols" style="grid-template-columns:repeat(${filtered.length},minmax(280px,1fr))">`;
+    // Header row — one cell per stream
     for (const s of filtered) {
-      html += `<div class="stream-col"><div class="stream-col-hdr">${esc(titleCase(s.stream))}<span class="period-ct">${s.periods.length} periods</span></div>`;
-      for (let i = 0; i < s.periods.length; i++) html += renderCard(s, i);
-      html += '</div>';
+      html += `<div class="stream-col-hdr">${esc(titleCase(s.stream))}<span class="period-ct">${s.periods.length} periods</span></div>`;
+    }
+    // One grid row per period; streams with fewer periods get an empty placeholder
+    for (let i = 0; i < maxPeriods; i++) {
+      for (const s of filtered) {
+        if (i < s.periods.length) {
+          html += renderCard(s, i);
+        } else {
+          html += '<div class="week-card-empty"></div>';
+        }
+      }
     }
     html += '</div></div>';
   }
