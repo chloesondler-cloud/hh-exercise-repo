@@ -110,6 +110,14 @@
   .grid-table td.has-exercise:hover { background: #C8E6C9; }
   .grid-table td.has-new-exercise { background: #FEF3C7; color: #92400E; font-weight: 500; font-style: italic; cursor: pointer; }
   .grid-table td.has-new-exercise:hover { background: #FDE68A; }
+  .grid-table td.has-override { background: #EDE8FF; color: #7c3aed; font-weight: 500; cursor: pointer; }
+  .grid-table td.has-override:hover { background: #DDD6FE; }
+  .grid-table td.moved-away { background: #F3F4F6 !important; color: #9CA3AF !important; font-style: italic; text-decoration: line-through; cursor: default; }
+  .grid-edit-mode .diff-col { cursor: crosshair !important; }
+  .grid-edit-mode td.is-moving-source { outline: 2px dashed var(--blue); outline-offset: -2px; background: #DBEAFE !important; }
+  .moving-bar { display:none; position:sticky; top:0; z-index:20; background:#1d4ed8; color:white; padding:8px 16px; font-size:13px; font-weight:600; border-radius:6px; margin-bottom:8px; align-items:center; gap:12px; }
+  .moving-bar.active { display:flex; }
+  .moving-bar .cancel-move { margin-left:auto; background:rgba(255,255,255,0.2); border:none; color:white; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:12px; }
   .diff-col { text-align: center; min-width: 65px; }
   
   /* Exercise detail modal */
@@ -138,7 +146,20 @@
   .mapper-item .status { font-size: 11px; margin-top: 2px; }
   .mapper-item.mapped .status { color: var(--green); }
   .mapper-item.unmapped .status { color: var(--gray-500); }
-  
+  .mapper-item.is-current { background: #f8f5ff; }
+  .mapper-item.is-current.selected { background: #ede8ff; border-left: 3px solid #7c3aed; }
+  .mapper-item.is-current .status { color: #7c3aed; }
+  .ex-type-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; vertical-align: middle; margin-left: 4px; }
+  .ex-type-tag.current { background: #ede8ff; color: #7c3aed; }
+  .ex-type-tag.new { background: var(--blue-light); color: var(--blue); }
+  .seg-btn-group { display: flex; border: 1px solid var(--gray-300); border-radius: 6px; overflow: hidden; }
+  .seg-btn { padding: 5px 14px; font-size: 12px; font-weight: 600; background: white; border: none; cursor: pointer; color: var(--gray-600); border-right: 1px solid var(--gray-300); transition: all 0.1s; }
+  .seg-btn:last-child { border-right: none; }
+  .seg-btn.active { background: var(--blue); color: white; }
+  .current-ex-notice { background: #f8f5ff; border: 1px solid #c4b5fd; border-radius: 7px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #5b21b6; }
+  .etpe-orig-badge { font-size: 11px; font-weight: 500; color: var(--gray-500); margin-left: 6px; }
+  .etpe-orig-badge strong { color: #7c3aed; }
+
   .mapper-form { background: white; border: 1px solid var(--gray-200); border-radius: 8px; padding: 20px; overflow-y: auto; }
   .mapper-form h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--gray-200); }
   .form-group { margin-bottom: 14px; }
@@ -220,6 +241,7 @@
     <div class="stat"><div class="num">222</div><div class="lbl">New Exercises</div></div>
     <div class="stat"><div class="num">44</div><div class="lbl">ENG Families</div></div>
   </div>
+  <a href="templates.html" style="color:white;opacity:0.85;text-decoration:none;font-size:12px;padding:5px 12px;border:1px solid rgba(255,255,255,0.45);border-radius:5px;white-space:nowrap;margin-left:4px;transition:opacity 0.15s" onmouseover="this.style.opacity='1';this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.opacity='0.85';this.style.background=''">Program Templates &#8594;</a>
 </div>
 
 <div class="tabs">
@@ -281,10 +303,18 @@
     <select id="grid-bodypart" onchange="renderGrid()"><option value="">All Body Parts</option></select>
     <span class="count-badge" id="grid-count">0 rows</span>
     <div class="legend" style="margin:0 0 0 12px">
-      <div class="legend-item"><div class="legend-dot" style="background:#E8F5E9;border:1px solid #A7D7A9"></div>Existing exercise</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#FEF3C7;border:1px solid #FCD34D"></div>Newly added exercise</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--blue-light);border:1px solid var(--blue)"></div>Click empty cell to add</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E8F5E9;border:1px solid #A7D7A9"></div>Current exercise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#FEF3C7;border:1px solid #FCD34D"></div>New exercise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#EDE8FF;border:1px solid #c4b5fd"></div>Proposed move</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue-light);border:1px solid var(--blue)"></div>Empty (click to add)</div>
     </div>
+    <button id="grid-edit-btn" class="btn btn-secondary" onclick="toggleGridEditMode()" style="margin-left:auto">&#9998; Edit Positions</button>
+    <button class="btn btn-secondary" onclick="clearAllOverrides()" style="margin-left:6px;color:#DC2626;border-color:#FCA5A5;font-size:12px">Clear Overrides</button>
+  </div>
+  <div class="moving-bar" id="moving-bar">
+    <span>&#128260; Moving: <strong id="moving-bar-name"></strong></span>
+    <span style="font-weight:400;opacity:0.85">&#8594; click any cell to drop here</span>
+    <button class="cancel-move" onclick="cancelMove()">&#215; Cancel (Esc)</button>
   </div>
   <div class="grid-scroll">
     <table class="grid-table" id="grid-table"></table>
@@ -294,7 +324,12 @@
 <!-- TAB 3: New Exercise Mapper -->
 <div id="tab2" class="panel">
   <div class="controls" style="margin-bottom:12px">
-    <input type="text" id="mapper-search" placeholder="Search new exercises..." oninput="filterMapper()">
+    <div class="seg-btn-group" id="mapper-exset-toggle">
+      <button class="seg-btn active" onclick="setMapperExSet('new')">New</button>
+      <button class="seg-btn" onclick="setMapperExSet('current')">Current</button>
+      <button class="seg-btn" onclick="setMapperExSet('all')">All</button>
+    </div>
+    <input type="text" id="mapper-search" placeholder="Search exercises..." oninput="filterMapper()">
     <select id="mapper-status" onchange="filterMapper()">
       <option value="">All</option>
       <option value="mapped">Mapped</option>
@@ -683,16 +718,138 @@ function initGrid() {
   });
 }
 
+// ===================== GRID EDIT MODE =====================
+let gridEditMode = false;
+let gridMovingEx = null; // {name, slug, isNew}
+
+function toggleGridEditMode() {
+  gridEditMode = !gridEditMode;
+  const btn = document.getElementById('grid-edit-btn');
+  const scroll = document.querySelector('#tab1 .grid-scroll');
+  if(gridEditMode) {
+    btn.textContent = '✓ Done Editing';
+    btn.classList.add('btn-primary');
+    btn.classList.remove('btn-secondary');
+    scroll.classList.add('grid-edit-mode');
+    document.addEventListener('keydown', onGridEsc);
+  } else {
+    cancelMove();
+    btn.textContent = '✎ Edit Positions';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-secondary');
+    scroll.classList.remove('grid-edit-mode');
+    document.removeEventListener('keydown', onGridEsc);
+  }
+}
+
+function onGridEsc(e) { if(e.key === 'Escape') cancelMove(); }
+
+function startMoving(name, slug, isNew) {
+  gridMovingEx = {name, slug, isNew};
+  document.getElementById('moving-bar-name').textContent = name;
+  document.getElementById('moving-bar').classList.add('active');
+  renderGrid();
+}
+
+function cancelMove() {
+  gridMovingEx = null;
+  document.getElementById('moving-bar').classList.remove('active');
+  renderGrid();
+}
+
+function gridCellClick(event, family, chain, diff, cellName, cellSlug, isNew) {
+  event.stopPropagation();
+  if(!gridEditMode) {
+    // Normal mode: show detail modal for filled cells
+    if(cellName) showCellModal(cellName, family, chain, diff);
+    else openSlotPicker(event, family, chain, diff);
+    return;
+  }
+  if(!gridMovingEx) {
+    // Select this exercise to move
+    if(cellName) startMoving(cellName, cellSlug, isNew);
+    else openSlotPicker(event, family, chain, diff);
+    return;
+  }
+  // Drop moving exercise here
+  dropMovingEx(family, chain, diff);
+}
+
+function dropMovingEx(family, chain, diff) {
+  const {slug, isNew} = gridMovingEx;
+  if(isNew) {
+    // Update savedMappings and allNewExercises
+    if(!savedMappings[slug]) savedMappings[slug] = {};
+    savedMappings[slug].engFamily = family;
+    savedMappings[slug].engChain = chain;
+    savedMappings[slug].difficulty = String(diff);
+    savedMappings[slug].famChain = family && chain ? family + ' ' + chain : '';
+    const idx = allNewExercises.findIndex(e => e.slug === slug);
+    if(idx >= 0) Object.assign(allNewExercises[idx], savedMappings[slug]);
+    localStorage.setItem('hh_exercise_mappings', JSON.stringify(savedMappings));
+  } else {
+    // Propose move for current exercise
+    if(!savedMappings[slug]) savedMappings[slug] = {};
+    savedMappings[slug].engFamily = family;
+    savedMappings[slug].engChain = chain;
+    savedMappings[slug].difficulty = String(diff);
+    localStorage.setItem('hh_exercise_mappings', JSON.stringify(savedMappings));
+  }
+  gridMovingEx = null;
+  document.getElementById('moving-bar').classList.remove('active');
+  renderGrid();
+}
+
+function clearAllOverrides() {
+  if(!confirm('Clear all proposed position overrides for current exercises?')) return;
+  CURRENT_EXERCISES.forEach(ex => {
+    if(savedMappings[ex.slug] && (savedMappings[ex.slug].engFamily !== undefined)) {
+      // Only remove position fields, not etpe overrides
+      delete savedMappings[ex.slug].engFamily;
+      delete savedMappings[ex.slug].engChain;
+      delete savedMappings[ex.slug].difficulty;
+      delete savedMappings[ex.slug].famChain;
+      if(Object.keys(savedMappings[ex.slug]).length === 0) delete savedMappings[ex.slug];
+    }
+  });
+  localStorage.setItem('hh_exercise_mappings', JSON.stringify(savedMappings));
+  renderGrid();
+}
+
 function renderGrid() {
   const filter = document.getElementById('grid-bodypart').value;
   const rows = filter ? GRID_ROWS.filter(r => r[0]===filter) : GRID_ROWS;
-  
+
+  // Build slug lookup by name for current exercises
+  const currentByName = {};
+  CURRENT_EXERCISES.forEach(ex => { currentByName[ex.name.toLowerCase()] = ex; });
+
+  // Build proposed position overrides (current exercises moved to new cells)
+  const proposedAt = {}; // "family|chain|diff" → [{name, slug}]
+  const movedAwayNames = new Set(); // exercise names moved from their original cell
+  CURRENT_EXERCISES.forEach(ex => {
+    const m = savedMappings[ex.slug];
+    if(!m) return;
+    const newFam = (m.engFamily !== undefined ? m.engFamily : ex.engFamily || '').trim();
+    const newChain = (m.engChain !== undefined ? m.engChain : ex.engChain || '').trim();
+    const newDiff = String(m.difficulty !== undefined ? m.difficulty : ex.difficulty || '').trim();
+    const origFam = (ex.engFamily || '').trim();
+    const origChain = (ex.engChain || '').trim();
+    const origDiff = String(ex.difficulty || '').trim();
+    if(newFam !== origFam || newChain !== origChain || newDiff !== origDiff) {
+      const key = `${newFam}|${newChain}|${newDiff}`;
+      if(!proposedAt[key]) proposedAt[key] = [];
+      proposedAt[key].push({name: ex.name, slug: ex.slug});
+      movedAwayNames.add(ex.name.toLowerCase());
+    }
+  });
+
   // Get new exercise mappings
   const newMappings = {};
   allNewExercises.filter(ex=>ex.engFamily).forEach(ex => {
     const key = (ex.engFamily||'').trim() + '|' + (ex.engChain||'').trim() + '|' + (ex.difficulty||'').trim();
     if(!newMappings[key]) newMappings[key] = [];
-    newMappings[key].push(ex.name);
+    newMappings[key].push({name: ex.name, slug: ex.slug});
   });
   
   const table = document.getElementById('grid-table');
@@ -722,24 +879,83 @@ function renderGrid() {
     
     DIFF_LEVELS.forEach((d, di) => {
       const cellVal = (row[5+di]||'').trim();
-      const famChain = (row[2]||'').trim() + '|' + (row[3]||'').trim() + '|' + d;
-      const newEx = newMappings[famChain] || [];
-      
-      let content = '', cls = '';
-      if(cellVal && cellVal !== ' ') {
-        content = cellVal;
-        cls = 'has-exercise';
-      } else if(newEx.length) {
-        content = newEx.join(', ');
-        cls = 'has-new-exercise';
+      const famKey = (row[2]||'').trim();
+      const chainKey = (row[3]||'').trim();
+      const cellKey = `${famKey}|${chainKey}|${d}`;
+      const newExArr = newMappings[cellKey] || [];
+      const proposed = proposedAt[cellKey] || [];
+
+      const safeFam = famKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const safeChain = chainKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+      // Determine primary cell content and style
+      // Priority: proposed overrides > original current > new exercise
+      let parts = [];
+      let cls = 'grid-empty';
+      let isMovingSource = false;
+
+      // Proposed overrides (current exercises moved here)
+      if(proposed.length) {
+        proposed.forEach(p => {
+          const safeSlug = p.slug.replace(/'/g,"\\'");
+          const safeName = p.name.replace(/'/g,"\\'");
+          const isSource = gridMovingEx && gridMovingEx.slug === p.slug;
+          parts.push({label: p.name, slug: p.slug, cls: 'has-override', isNew: false, isSource});
+        });
       }
-      
-      const safeFam = (row[2]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const safeChain = (row[3]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      if(content) {
-        html += `<td class="diff-col ${cls}" onclick="showCellModal('${content.replace(/'/g,"\\'")}','${safeFam}','${safeChain}',${d})" title="${content}">${content.substring(0,25)}${content.length>25?'…':''}</td>`;
+
+      // Original current exercises (not moved away)
+      if(cellVal && cellVal !== ' ') {
+        const isMovedAway = movedAwayNames.has(cellVal.toLowerCase());
+        const exObj = currentByName[cellVal.toLowerCase()];
+        const slug = exObj ? exObj.slug : '';
+        const isSource = gridMovingEx && gridMovingEx.slug === slug;
+        parts.push({label: cellVal, slug, cls: isMovedAway ? 'moved-away' : 'has-exercise', isNew: false, isMovedAway, isSource});
+      }
+
+      // New exercises mapped here
+      newExArr.forEach(n => {
+        const isSource = gridMovingEx && gridMovingEx.slug === n.slug;
+        parts.push({label: n.name, slug: n.slug, cls: 'has-new-exercise', isNew: true, isSource});
+      });
+
+      // Determine overall cell class (highest priority non-moved-away item)
+      const activeParts = parts.filter(p => !p.isMovedAway);
+      if(activeParts.length) cls = activeParts[0].cls;
+      else if(parts.length) cls = 'moved-away'; // all moved away
+
+      if(gridMovingEx && parts.some(p => p.isSource)) isMovingSource = true;
+
+      if(gridEditMode) {
+        // In edit mode: unified click handler
+        const firstActive = activeParts[0] || parts[0];
+        const clickName = firstActive ? firstActive.label.replace(/'/g,"\\'") : '';
+        const clickSlug = firstActive ? firstActive.slug.replace(/'/g,"\\'") : '';
+        const clickIsNew = firstActive ? firstActive.isNew : false;
+        const extraCls = isMovingSource ? ' is-moving-source' : '';
+        const displayContent = parts.map(p => {
+          const prefix = p.isMovedAway ? '<s style="opacity:0.5">' : (p.cls==='has-override' ? '&#10022; ' : '');
+          const suffix = p.isMovedAway ? '</s>' : '';
+          return prefix + p.label.substring(0,20) + (p.label.length>20?'…':'') + suffix;
+        }).join('<br>') || '<span class="add-icon">＋</span>';
+        const title = parts.map(p=>p.label).join(', ') || 'Drop here';
+        html += `<td class="diff-col ${cls}${extraCls}" onclick="gridCellClick(event,'${safeFam}','${safeChain}',${d},'${clickName}','${clickSlug}',${clickIsNew})" title="${title}">${displayContent}</td>`;
       } else {
-        html += `<td class="diff-col grid-empty" onclick="openSlotPicker(event,'${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
+        // Normal mode: original behavior
+        if(activeParts.length) {
+          const displayParts = activeParts.map(p => p.label.substring(0,20) + (p.label.length>20?'…':'')).join(', ');
+          const title = activeParts.map(p=>p.label).join(', ');
+          const first = activeParts[0];
+          const safeFirst = first.label.replace(/'/g,"\\'");
+          const safeSlug = first.slug.replace(/'/g,"\\'");
+          html += `<td class="diff-col ${cls}" onclick="showCellModal('${safeFirst}','${safeFam}','${safeChain}',${d})" title="${title}">${displayParts}</td>`;
+        } else if(parts.length) {
+          // All moved away
+          const displayParts = parts.map(p=>'<s style="opacity:0.5">'+p.label.substring(0,18)+'</s>').join(', ');
+          html += `<td class="diff-col moved-away" title="Moved away">${displayParts}</td>`;
+        } else {
+          html += `<td class="diff-col grid-empty" onclick="openSlotPicker(event,'${safeFam}','${safeChain}',${d})" title="Add exercise here"><span class="add-icon">＋</span></td>`;
+        }
       }
     });
     html += '</tr>';
@@ -1004,6 +1220,17 @@ function showToast(msg) {
 // ===================== TAB 3: MAPPER =====================
 let mapperFiltered = [...allNewExercises];
 let selectedMapperSlug = null;
+let mapperExSet = 'new'; // 'new' | 'current' | 'all'
+
+function setMapperExSet(val) {
+  mapperExSet = val;
+  selectedMapperSlug = null;
+  document.querySelectorAll('#mapper-exset-toggle .seg-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', ['new','current','all'][i] === val);
+  });
+  document.getElementById('mapper-form').innerHTML = '<div class="empty"><div class="icon">👈</div><p>Select an exercise from the list to add mappings</p></div>';
+  filterMapper();
+}
 
 function renderMapper() {
   filterMapper();
@@ -1012,30 +1239,52 @@ function renderMapper() {
 function filterMapper() {
   const q = document.getElementById('mapper-search').value.toLowerCase();
   const status = document.getElementById('mapper-status').value;
-  
-  mapperFiltered = allNewExercises.filter(ex => {
-    const isMapped = !!(ex.engFamily || savedMappings[ex.slug]?.engFamily);
-    if(status === 'mapped' && !isMapped) return false;
-    if(status === 'unmapped' && isMapped) return false;
+
+  const currentSlugs = new Set(CURRENT_EXERCISES.map(e => e.slug));
+  let source;
+  if(mapperExSet === 'new') source = allNewExercises;
+  else if(mapperExSet === 'current') source = CURRENT_EXERCISES;
+  else source = [...CURRENT_EXERCISES, ...allNewExercises];
+
+  mapperFiltered = source.filter(ex => {
+    const isCurrent = currentSlugs.has(ex.slug);
+    const m = savedMappings[ex.slug] || {};
+    const isMapped = !!(ex.engFamily || m.engFamily);
+    const hasEtpeOverride = isCurrent && m.etpe;
+    if(status === 'mapped' && !isMapped && !hasEtpeOverride) return false;
+    if(status === 'unmapped' && (isMapped || hasEtpeOverride)) return false;
     if(q && !ex.name.toLowerCase().includes(q) && !ex.slug.toLowerCase().includes(q)) return false;
     return true;
   });
-  
+
   const mapped = allNewExercises.filter(ex => ex.engFamily || savedMappings[ex.slug]?.engFamily).length;
-  document.getElementById('mapper-count').textContent = `${mapped} / ${allNewExercises.length} mapped`;
-  
+  const currentEdited = CURRENT_EXERCISES.filter(ex => savedMappings[ex.slug]?.etpe).length;
+  let countText = `${mapped} / ${allNewExercises.length} new mapped`;
+  if(currentEdited > 0) countText += ` · ${currentEdited} current edited`;
+  document.getElementById('mapper-count').textContent = countText;
+
   const list = document.getElementById('mapper-list');
   list.innerHTML = mapperFiltered.map(ex => {
+    const isCurrent = currentSlugs.has(ex.slug);
     const m = savedMappings[ex.slug] || {};
     const isMapped = !!(ex.engFamily || m.engFamily);
+    const hasEtpeOverride = isCurrent && m.etpe;
     const sel = ex.slug === selectedMapperSlug ? ' selected' : '';
-    const mappedLabel = isMapped ? (m.engChain || ex.engChain || 'mapped') : 'unmapped';
-    return `<div class="mapper-item ${isMapped?'mapped':'unmapped'}${sel}" onclick="selectMapperItem('${ex.slug.replace(/'/g,"\'")}')" data-slug="${ex.slug}">
-      <div class="name">${ex.name}</div>
-      <div class="status">${isMapped ? '✓ ' + mappedLabel : '— Not mapped'}</div>
+    const typeTag = mapperExSet === 'all' ? `<span class="ex-type-tag ${isCurrent?'current':'new'}">${isCurrent?'Current':'New'}</span>` : '';
+    let itemClass, statusText;
+    if(isCurrent) {
+      itemClass = 'is-current';
+      statusText = hasEtpeOverride ? '&#9998; ETPE overridden' : '— No changes';
+    } else {
+      itemClass = isMapped ? 'mapped' : 'unmapped';
+      statusText = isMapped ? '&#10003; ' + (m.engChain || ex.engChain || 'mapped') : '— Not mapped';
+    }
+    return `<div class="mapper-item ${itemClass}${sel}" onclick="selectMapperItem('${ex.slug.replace(/'/g,"\'")}')" data-slug="${ex.slug}">
+      <div class="name">${ex.name}${typeTag}</div>
+      <div class="status">${statusText}</div>
     </div>`;
   }).join('');
-  
+
   if(selectedMapperSlug) {
     const el = list.querySelector(`[data-slug="${selectedMapperSlug}"]`);
     if(el) el.scrollIntoView({block:'nearest'});
@@ -1044,10 +1293,12 @@ function filterMapper() {
 
 function selectMapperItem(slug) {
   selectedMapperSlug = slug;
-  const ex = allNewExercises.find(e => e.slug === slug);
+  const ex = allNewExercises.find(e => e.slug === slug) || CURRENT_EXERCISES.find(e => e.slug === slug);
   const saved = savedMappings[slug] || {};
-  const merged = {...ex, ...saved};
-  
+  // Merge etpe separately so we can still show original in the form
+  const {etpe: savedEtpe, ...savedOther} = saved;
+  const merged = {...ex, ...savedOther, etpe: {...(ex.etpe||{}), ...(savedEtpe||{})}};
+
   filterMapper(); // re-render list with selection
   renderMapperForm(merged);
 }
@@ -1072,6 +1323,11 @@ function renderMapperForm(ex) {
 
   const etpe = ex.etpe || {};
 
+  // Detect if this is a current exercise and get its original scores
+  const originalEx = CURRENT_EXERCISES.find(c => c.slug === ex.slug);
+  const isCurrent = !!originalEx;
+  const originalEtpe = originalEx ? (originalEx.etpe || {}) : {};
+
   // Derive unique values from current exercises for dropdowns
   const allPositions = [...new Set(CURRENT_EXERCISES.filter(e=>e.bodyPosition).map(e=>e.bodyPosition))].sort();
   const allWbing = [...new Set(CURRENT_EXERCISES.filter(e=>e.wbing).map(e=>e.wbing))].sort();
@@ -1084,7 +1340,8 @@ function renderMapperForm(ex) {
 
   form.innerHTML = `
     <h3>${ex.name}</h3>
-    <div style="font-size:12px;color:var(--gray-500);font-family:monospace;margin-bottom:16px">${ex.slug}</div>
+    <div style="font-size:12px;color:var(--gray-500);font-family:monospace;margin-bottom:${isCurrent?'8px':'16px'}">${ex.slug}</div>
+    ${isCurrent ? `<div class="current-ex-notice">&#9432; This is a <strong>current exercise</strong>. Changes are saved as proposed overrides — original scores are shown next to each ETPE slider for reference.</div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
@@ -1198,8 +1455,12 @@ function renderMapperForm(ex) {
         ${['mobility','capacity','motor','balance','fearAvoid','symptomRelief'].map(key => {
           const labels = {mobility:'Mobility',capacity:'Capacity',motor:'Motor',balance:'Balance',fearAvoid:'Fear Avoid',symptomRelief:'Symptom Relief'};
           const val = parseInt(etpe[key]) || 5;
+          const origVal = parseInt(originalEtpe[key]);
+          const origBadge = isCurrent
+            ? `<span class="etpe-orig-badge">orig: <strong>${origVal||'—'}</strong></span>`
+            : '';
           return `<div class="slider-group">
-            <label>${labels[key]} <span class="score-val" id="sv-${key}">${val}</span></label>
+            <label>${labels[key]} <span class="score-val" id="sv-${key}">${val}</span>${origBadge}</label>
             <input type="range" min="1" max="10" value="${val}" oninput="document.getElementById('sv-${key}').textContent=this.value" id="sl-${key}">
           </div>`;
         }).join('')}
@@ -1341,7 +1602,10 @@ function clearMapping(slug) {
     });
   }
   filterMapper();
-  renderMapperForm(allNewExercises[idx] || {});
+  // For current exercises, restore to original; for new exercises, show blank/original
+  const ex = idx >= 0 ? allNewExercises[idx] : CURRENT_EXERCISES.find(e => e.slug === slug);
+  if(ex) renderMapperForm(ex);
+  else document.getElementById('mapper-form').innerHTML = '<div class="empty"><div class="icon">👈</div><p>Select an exercise from the list to add mappings</p></div>';
 }
 
 function resetMappings() {
