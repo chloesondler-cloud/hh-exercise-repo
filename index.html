@@ -414,6 +414,7 @@
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
     <div id="dmet-diff-filters" style="display:flex;gap:6px"></div>
     <button onclick="copyDMETSummary()" style="margin-left:auto;padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Copy Proposed Changes</button>
+    <button onclick="exportDMETCSV()" style="padding:6px 14px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Export CSV</button>
   </div>
   <div id="dmet-sessions-container"></div>
 </div>
@@ -2196,6 +2197,54 @@ function copyDMETSummary() {
     () => alert(`Copied ${sessionEntries.length} session(s) with proposed changes to clipboard.`),
     () => { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); alert('Copied to clipboard.'); }
   );
+}
+
+function exportDMETCSV() {
+  const proposed = getDMETProposed();
+  const keys = Object.keys(proposed);
+  if(!keys.length) { alert('No proposed changes to export.'); return; }
+
+  // Build current value lookup keyed by dmetKey
+  const currentMap = {};
+  DMET_SESSIONS.forEach(s => {
+    s.exercises.forEach(ex => {
+      currentMap[dmetKey(s.title, ex.name)] = {
+        session: s.title, bodyPart: s.bodyPart, difficulty: s.difficulty,
+        deeplink: s.deeplink, exName: ex.name, reps: ex.reps, hold: ex.hold
+      };
+    });
+  });
+
+  const rows = [];
+  keys.forEach(k => {
+    const cur = currentMap[k];
+    if(!cur) return;
+    const p = proposed[k];
+    if(p.reps == null) return;
+    const _norm = dmetNormalizeName(cur.exName);
+    const slug = DMET_NAME_TO_SLUG[_norm] || (DMET_NAME_ALIASES[_norm] ? DMET_NAME_ALIASES[_norm] : '');
+    const curHold = (cur.hold === 0 || cur.hold === 'CM') ? 'CM' : cur.hold;
+    const propHold = p.hold === 0 ? 'CM' : p.hold;
+    rows.push([
+      cur.session, cur.bodyPart, cur.difficulty, cur.deeplink,
+      cur.exName, slug,
+      cur.reps, curHold,
+      p.reps, propHold
+    ]);
+  });
+
+  if(!rows.length) { alert('No actual changes to export.'); return; }
+
+  const escape = v => { const s = String(v); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const header = ['session_title','body_part','difficulty','deeplink','exercise_name','exercise_slug','current_reps','current_hold_s','proposed_reps','proposed_hold_s'];
+  const csv = [header, ...rows].map(r => r.map(escape).join(',')).join('\n');
+
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dmet_proposed_changes.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 </script>
 </body>
