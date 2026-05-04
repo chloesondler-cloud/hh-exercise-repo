@@ -415,6 +415,8 @@
     <div id="dmet-diff-filters" style="display:flex;gap:6px"></div>
     <button onclick="copyDMETSummary()" style="margin-left:auto;padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Copy Proposed Changes</button>
     <button onclick="exportDMETCSV()" style="padding:6px 14px;background:#7C3AED;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Export CSV</button>
+    <button onclick="exportDMETState()" style="padding:6px 14px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">Share State</button>
+    <label style="padding:6px 14px;background:#F59E0B;color:#fff;border-radius:6px;cursor:pointer;font-size:13px;margin:0">Import State<input type="file" accept=".json" onchange="importDMETState(event)" style="display:none"></label>
   </div>
   <div id="dmet-sessions-container"></div>
 </div>
@@ -2199,6 +2201,40 @@ function copyDMETSummary() {
   );
 }
 
+
+function exportDMETState() {
+  const proposed = getDMETProposed();
+  if(!Object.keys(proposed).length) { alert('No proposed changes to share.'); return; }
+  const blob = new Blob([JSON.stringify(proposed, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dmet_proposed_state.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function importDMETState(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const incoming = JSON.parse(e.target.result);
+      if(typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('Invalid format');
+      const existing = getDMETProposed();
+      const merged = Object.assign({}, existing, incoming);
+      const added = Object.keys(incoming).filter(k => !existing[k]).length;
+      const updated = Object.keys(incoming).filter(k => existing[k] && JSON.stringify(existing[k]) !== JSON.stringify(incoming[k])).length;
+      saveDMETProposed(merged);
+      renderDMETSessions();
+      alert(`Imported: ${added} new + ${updated} updated proposal(s).`);
+    } catch(err) {
+      alert('Could not import: invalid file format.');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
 function exportDMETCSV() {
   const proposed = getDMETProposed();
   const keys = Object.keys(proposed);
