@@ -43,6 +43,9 @@
   .filter-group label { font-size: 11px; color: var(--gray-500); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; }
   .filter-group select { border: 1px solid var(--gray-300); border-radius: 6px; padding: 5px 8px; font-size: 13px; outline: none; background: white; cursor: pointer; }
   .filter-group select:focus { border-color: var(--blue); box-shadow: 0 0 0 2px var(--blue-light); }
+  .export-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; border: 1px solid var(--blue); border-radius: 6px; background: white; color: var(--blue); cursor: pointer; }
+  .export-btn:hover { background: var(--blue-light); }
+  .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ── Breadcrumb bar ──────────────────────────────────────────────────────── */
   .breadcrumb { background: white; border-bottom: 1px solid var(--gray-200); padding: 8px 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 41px; }
@@ -155,6 +158,7 @@
     <button class="prog-btn" data-prog="balance">Balance</button>
   </div>
   <div id="bodyPartFilter"></div>
+  <button id="exportCsvBtn" class="export-btn" style="margin-left:auto">&#128229; Export CSV</button>
 </div>
 
 <div class="breadcrumb" id="breadcrumb" style="display:none"></div>
@@ -633,6 +637,78 @@ document.querySelectorAll('.prog-btn').forEach(btn => {
     render();
   });
 });
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+function csvCell(v) {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function periodToWeek(label) {
+  const m = String(label || '').match(/(\d+)/);
+  return m ? m[1] : label || '';
+}
+function buildCsvRows(prog) {
+  const cols = ['bodyPart','stream','week','exerciseName','slug','reps','holdTimes','condition'];
+  const rows = [cols];
+  if (prog === 'dmet') {
+    for (const sess of (DMET_SESSIONS || [])) {
+      for (const ex of sess.exercises) {
+        rows.push([
+          sess.bodyPart || '',
+          sess.difficulty || '',
+          '',
+          ex.name || '',
+          ex.slug || '',
+          ex.reps != null ? ex.reps : '',
+          ex.hold != null ? ex.hold : '',
+          sess.title || ''
+        ]);
+      }
+    }
+    return rows;
+  }
+  let data = (TEMPLATE_DATA[prog] || []);
+  if (prog === 'wph') data = data.filter(p => p.condition !== 'WPH Templates Final');
+  for (const p of data) {
+    let condition = p.condition || '';
+    if (prog === 'perisurgical') {
+      const parts = [p.procedureType, p.stage, p.laterality].filter(Boolean);
+      condition = parts.join(' / ');
+    }
+    for (const s of (p.streams || [])) {
+      for (const period of (s.periods || [])) {
+        const week = periodToWeek(period.label);
+        for (const ex of (period.exercises || [])) {
+          rows.push([
+            p.bodyPart || '',
+            s.stream || '',
+            week,
+            ex.n || '',
+            ex.s || '',
+            ex.r != null ? ex.r : '',
+            ex.h != null ? ex.h : '',
+            condition
+          ]);
+        }
+      }
+    }
+  }
+  return rows;
+}
+function downloadCsv(prog) {
+  const rows = buildCsvRows(prog);
+  const csv = rows.map(r => r.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${prog}-templates.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+document.getElementById('exportCsvBtn').addEventListener('click', () => downloadCsv(state.prog));
 
 render();
 </script>
